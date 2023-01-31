@@ -1,0 +1,142 @@
+write code to create a program similar to chatGPT openAI that takes a query and writes an answer
+
+#it has some error regarding input dimensions
+
+#write code to create a program similar to chatGPT/openAI that takes a query and writes an answer
+
+
+#import necessary libraries
+import torch
+import torch.nn as nn
+from torch.autograd import Variable
+import torch.optim as optim
+import nltk
+import random
+import numpy as np
+from collections import Counter
+import pandas as pd
+import re
+
+#define a class for the chatbot
+class Chatbot:
+    #initialize the variables
+    def __init__(self, input_size, hidden_size, output_size, learning_rate):
+        self.encoder = nn.LSTM(input_size, hidden_size)
+        self.decoder = nn.LSTM(hidden_size, output_size)
+        self.hidden_size = hidden_size
+        self.input_size = input_size
+        self.output_size = output_size
+        self.learning_rate = learning_rate
+        self.encoder_optimizer = optim.Adam(self.encoder.parameters(), lr=self.learning_rate)
+        self.decoder_optimizer = optim.Adam(self.decoder.parameters(), lr=self.learning_rate)
+        self.criterion = nn.CrossEntropyLoss()
+
+    #define a function to preprocess the data
+    def preprocess_data(self, corpus):
+        data = []
+        for line in corpus:
+            line = line.lower()
+            line = re.sub(r'[^\w\s]','',line)
+            words = nltk.word_tokenize(line)
+            data.append(words)
+        return data
+
+    #define a function to create the vocabulary
+    def create_vocabulary(self, data):
+        vocab = set()
+        for line in data:
+            for word in line:
+                vocab.add(word)
+        self.vocab_size = len(vocab)
+        self.word2index = {w: i for i, w in enumerate(vocab)}
+        self.index2word = {i: w for i, w in enumerate(vocab)}
+
+    #define a function to vectorize the data
+    def vectorize_data(self, data):
+        vectorized_data = []
+        for line in data:
+            line_vector = []
+            for word in line:
+                line_vector.append(self.word2index[word])
+            vectorized_data.append(line_vector)
+        return vectorized_data
+
+    #define a function to prepare the data for training
+    def prepare_data(self, corpus):
+        data = self.preprocess_data(corpus)
+        self.create_vocabulary(data)
+        vectorized_data = self.vectorize_data(data)
+        self.data_length = sum([len(line) for line in vectorized_data])
+        return vectorized_data
+
+    #define a function to encode the input
+    def encode(self, input_vector):
+        input_vector = Variable(torch.FloatTensor([input_vector]))
+        encoder_output,(encoder_hidden, encoder_cell_state) = self.encoder(input_vector)
+        return encoder_output, encoder_hidden, encoder_cell_state
+
+    #define a function to decode the input
+    def decode(self, decoder_input, hidden_state, cell_state):
+        decoder_input = Variable(torch.FloatTensor([decoder_input]))
+        decoder_output, (decoder_hidden, decoder_cell_state) = self.decoder(decoder_input, (hidden_state, cell_state))
+        return decoder_output, decoder_hidden, decoder_cell_state
+
+    #define a function to train the model
+    def train(self, data):
+        for line in data:
+            encoder_input = Variable(torch.LongTensor([line[0]]))
+            encoder_output, hidden_state, cell_state = self.encode(encoder_input)
+            for i in range(1, len(line)):
+                decoder_input = Variable(torch.LongTensor([line[i]]))
+                decoder_output, hidden_state, cell_state = self.decode(decoder_input, hidden_state, cell_state)
+                target_output = Variable(torch.LongTensor([line[i+1]]))
+                loss = self.criterion(decoder_output, target_output)
+                self.encoder_optimizer.zero_grad()
+                self.decoder_optimizer.zero_grad()
+                loss.backward()
+                self.encoder_optimizer.step()
+                self.decoder_optimizer.step()
+
+    #define a function to generate the output
+    def generate_output(self, input_vector, max_length):
+        input_vector = Variable(torch.LongTensor([input_vector]))
+        encoder_output, hidden_state, cell_state = self.encode(input_vector)
+        output_words = []
+        for _ in range(max_length):
+            decoder_input = Variable(torch.LongTensor([[random.randint(0, self.vocab_size-1)]]))
+            decoder_output, hidden_state, cell_state = self.decode(decoder_input, hidden_state, cell_state)
+            top_index = decoder_output.data[0].topk(1)[1][0][0]
+            if top_index == self.word2index['<EOS>']:
+                output_words.append('<EOS>')
+                break
+            else:
+                output_words.append(self.index2word[top_index])
+        return output_words
+
+#define a function to take input from the user
+def take_input(bot):
+    print("Please enter your query:")
+    user_input = input().lower()
+    input_vector = [bot.word2index[word] for word in nltk.word_tokenize(user_input)]
+    output_words = bot.generate_output(input_vector, 10)
+    print("Bot: {}".format(" ".join(output_words)))
+
+#define a main function to run the program
+def main():
+    corpus = ["Hello there!",
+              "How are you?",
+              "I'm doing great!",
+              "That's good to hear.",
+              "What can I help you with?"
+              ]
+    input_size = 100
+    hidden_size = 128
+    output_size = 100
+    learning_rate = 0.001
+    bot = Chatbot(input_size, hidden_size, output_size, learning_rate)
+    data = bot.prepare_data(corpus)
+    bot.train(data)
+    take_input(bot)
+
+if __name__ == '__main__':
+    main()
