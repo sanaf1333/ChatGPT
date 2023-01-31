@@ -1,0 +1,63 @@
+I asked openAI to write a program in python that takes text as input and gives relevant google links related to that text
+
+# Python Program to 
+# Get Google Search Links 
+# for a Given Text 
+
+# Importing the necessary modules 
+import requests 
+import time 
+import webbrowser 
+
+# Function to get Google Search Links 
+def get_google_links(text): 
+	
+	# Base URL to make a search on Google 
+	base_url = 'https://www.google.com/search?q='
+	
+	# Adding the Text to the Base URL 
+	url = base_url + text 
+	
+	# Making the request to the Google Search 
+	response = requests.get(url) 
+	
+	# Declaring an empty List 
+	links = [] 
+	
+	# Parsing the response 
+	for x in response.text.split('<div class="r">'): 
+		
+		# Temporary link variable 
+		temp_link = None
+		
+		# Parsing the text 
+		for y in x.split('<a href="'): 
+			if len(y) > 1: 
+				
+				# Assigning the link to 
+				# temporary variable 
+				temp_link = y.split('"')[0] 
+				
+				# Checking if the link 
+				# is actually a Link 
+				if temp_link[0:4] == 'http': 
+					
+					# Appending the link to the final list 
+					links.append(temp_link) 
+	
+	# Returning the List 
+	return links 
+
+# Taking the Input from the User 
+text = input("Enter the Text to Search : ") 
+
+# Fetching the Links 
+links = get_google_links(text) 
+
+# Printing the Links 
+for link in links: 
+	print(link) 
+	
+	# Opening the Links in a Web Browser 
+	time.sleep(2) 
+	webbrowser.open_new_tab(link)
